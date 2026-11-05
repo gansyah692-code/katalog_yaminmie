@@ -2,13 +2,21 @@
   "name": "server",
   "version": "1.0.0",
   "description": "",
+<<<<<<< HEAD
   "main": "src/index.js",
   "scripts": {
     "dev": "node --experimental-sqlite src/index.js"
+=======
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node index.js"
+>>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+<<<<<<< HEAD
   "type": "module",
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -18,5 +26,11 @@
     "express": "^5.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0"
+=======
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^5.3.0"
+>>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
   }
 }
