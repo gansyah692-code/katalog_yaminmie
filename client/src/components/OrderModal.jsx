@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, MessageCircle, AlertCircle, Send, Check } from 'lucide-react';
+import { getAssetUrl } from '../services/api';
 
 export const OrderModal = ({ product, storeSettings, onClose }) => {
     const [customerName, setCustomerName] = useState('');
@@ -84,9 +85,13 @@ Mohon diproses ya, terima kasih!`;
                         {/* Selected Product Summary Box */}
                         <div className="order-product-summary">
                             <img
-                                src={product.image}
+                                src={getAssetUrl(product.image) || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80'}
                                 alt={product.name}
                                 className="summary-img"
+                                onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80';
+                                }}
                             />
                             <div className="summary-details">
                                 <span className="summary-category">{product.categoryName}</span>

@@ -33,7 +33,8 @@ import {
     createCategory,
     updateCategory,
     deleteCategory,
-    updateStoreSettings
+    updateStoreSettings,
+    getAssetUrl
 } from '../services/api';
 
 export const AdminDashboard = ({
@@ -457,7 +458,7 @@ export const AdminDashboard = ({
                                                         {/* Image */}
                                                         <td style={{ width: '64px' }}>
                                                             <img
-                                                                src={prod.image}
+                                                                src={getAssetUrl(prod.image)}
                                                                 alt={prod.name}
                                                                 className="table-product-thumb"
                                                                 onError={(e) => {

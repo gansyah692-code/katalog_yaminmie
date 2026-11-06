@@ -1,5 +1,25 @@
-<<<<<<< HEAD
+# Dependencies
+node_modules/
 /server/node_modules/
-=======
 server/node_modules/
->>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
+client/node_modules/
+
+# Production build outputs
+dist/
+client/dist/
+
+# Local Environment Variables
+.env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
+client/.env
+client/.env.local
+
+# Uploads & Temporary Files
+uploads/
+server/uploads/
+*.log
+.DS_Store
+Thumbs.db

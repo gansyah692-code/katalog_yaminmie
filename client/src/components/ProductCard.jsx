@@ -1,5 +1,6 @@
 import React from 'react';
 import { MessageCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { getAssetUrl } from '../services/api';
 
 export const ProductCard = ({ product, onSelectProduct }) => {
     const isAvailable = product.stockStatus === 'Tersedia';
@@ -14,7 +15,7 @@ export const ProductCard = ({ product, onSelectProduct }) => {
     };
 
     const fallbackImage = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80';
-    const displayImage = product.image && product.image !== '-' ? product.image : fallbackImage;
+    const displayImage = product.image && product.image !== '-' ? getAssetUrl(product.image) : fallbackImage;
 
     return (
         <div className={`product-card ${!isAvailable ? 'out-of-stock' : ''}`} id={`product-${product.id}`}>

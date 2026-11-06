@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Image as ImageIcon, Save, AlertCircle } from 'lucide-react';
+import { getAssetUrl } from '../services/api';
 
 const PRESET_FOOD_IMAGES = [
     { label: 'Nasi Goreng', url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80' },
@@ -30,7 +31,7 @@ export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, cate
             setStockStatus(editingProduct.stockStatus || 'Tersedia');
             setDescription(editingProduct.description || '');
             setImageUrl(editingProduct.image || '');
-            setPreviewSrc(editingProduct.image || '');
+            setPreviewSrc(getAssetUrl(editingProduct.image) || '');
             setSelectedFile(null);
         } else {
             setName('');

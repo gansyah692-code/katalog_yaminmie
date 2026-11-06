@@ -1,4 +1,15 @@
-const API_BASE = '/api';
+const BACKEND_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const API_BASE = `${BACKEND_BASE}/api`;
+
+// Helper for asset URLs (images/uploads)
+export const getAssetUrl = (url) => {
+  if (!url || url === '-') return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${BACKEND_BASE}${cleanPath}`;
+};
 
 // Token Management
 export const getAuthToken = () => localStorage.getItem('katalogwa_token');
