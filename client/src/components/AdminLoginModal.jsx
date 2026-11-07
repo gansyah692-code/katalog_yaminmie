@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
-import { loginAdmin } from '../services/api';
+import { loginAdmin, setAuthToken } from '../services/api';
 
 export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
     const [email, setEmail] = useState('');
