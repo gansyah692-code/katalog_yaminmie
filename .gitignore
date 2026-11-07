@@ -20,6 +20,8 @@ client/.env.local
 # Uploads & Temporary Files
 uploads/
 server/uploads/
+server/src/db/*.sqlite
+server/src/db/katalogwa-db.json
 *.log
 .DS_Store
 Thumbs.db

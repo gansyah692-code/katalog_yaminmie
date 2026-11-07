@@ -1,4 +1,4 @@
-import { DatabaseSync } from 'node:sqlite';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
@@ -7,9 +7,108 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const SQLITE_FILE = path.join(__dirname, 'katalogwa.sqlite');
+const JSON_FILE = path.join(__dirname, 'katalogwa-db.json');
+
+const INITIAL_SETTINGS = {
+  storeName: 'Toko Berkah Nusantara',
+  tagline: 'Kuliner Lezat & Segar Siap Antar Setiap Hari',
+  phone: '6281234567890',
+  address: 'Jl. Melati No. 12, Kebayoran Baru, Jakarta Selatan',
+  currency: 'Rp'
+};
+
+const INITIAL_CATEGORIES = [
+  { id: 'cat-1', name: 'Makanan', slug: 'makanan', createdAt: '2026-01-01T00:00:00.000Z' },
+  { id: 'cat-2', name: 'Minuman', slug: 'minuman', createdAt: '2026-01-01T00:00:01.000Z' },
+  { id: 'cat-3', name: 'Camilan', slug: 'camilan', createdAt: '2026-01-01T00:00:02.000Z' }
+];
+
+const INITIAL_PRODUCTS = [
+  {
+    id: 'prod-1',
+    name: 'Nasi Goreng Spesial Toko Berkah',
+    categoryId: 'cat-1',
+    price: 28000,
+    stockStatus: 'Tersedia',
+    description: 'Nasi goreng racikan bumbu rempah otentik disajikan dengan telur mata sapi, ayam suwir, dan kerupuk renyah.',
+    image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-2',
+    name: 'Ayam Bakar Madu Pedas',
+    categoryId: 'cat-1',
+    price: 32000,
+    stockStatus: 'Tersedia',
+    description: 'Potongan ayam bakar empuk dilumuri saus madu gurih pedas manis dengan lalapan segar dan sambal terasi.',
+    image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-3',
+    name: 'Mie Aceh Tumis Daging Sapi',
+    categoryId: 'cat-1',
+    price: 30000,
+    stockStatus: 'Tersedia',
+    description: 'Mie kuning kenyal khas Aceh dimasak bumbu kari pekat dengan irisan daging sapi empuk, tauge, dan emping.',
+    image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-4',
+    name: 'Es Kopi Susu Gula Aren',
+    categoryId: 'cat-2',
+    price: 18000,
+    stockStatus: 'Tersedia',
+    description: 'Espresso robusta & arabica pilihan dipadu susu creamy fresh dan sirup gula aren murni organik.',
+    image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-5',
+    name: 'Matcha Latte Creamy Frappe',
+    categoryId: 'cat-2',
+    price: 22000,
+    stockStatus: 'Tersedia',
+    description: 'Bubuk green tea matcha Uji Jepang premium dipadu susu segar dingin yang lembut dan harum.',
+    image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-6',
+    name: 'Es Lemon Tea Segar Jumbo',
+    categoryId: 'cat-2',
+    price: 10000,
+    stockStatus: 'Tersedia',
+    description: 'Seduhan teh melati wangi dengan perasan lemon asli segar dan es batu dingin, penghilang dahaga terbaik.',
+    image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-7',
+    name: 'Pisang Goreng Keju Cokelat Lumer',
+    categoryId: 'cat-3',
+    price: 18000,
+    stockStatus: 'Tersedia',
+    description: 'Pisang raja manis digoreng tepung crispy diselimuti keju parut gurih dan saus cokelat Belgian lumer.',
+    image: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-8',
+    name: 'Dimsum Mentai Panggang (4 pcs)',
+    categoryId: 'cat-3',
+    price: 25000,
+    stockStatus: 'Tersedia',
+    description: 'Dimsum ayam udang lembut dengan topping saus mentai gurih dibakar torch aroma smoky menggoda.',
+    image: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'prod-9',
+    name: 'Cireng Crispy Bumbu Rujak Pedas',
+    categoryId: 'cat-3',
+    price: 15000,
+    stockStatus: 'Habis',
+    description: 'Cireng kenyal gurih dengan lapisan renyah di luar, dicocol saus rujak manis asam pedas nagih.',
+    image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=800&q=80'
+  }
+];
 
 class SqliteDatabase {
-  constructor() {
+  constructor(DatabaseSync) {
     this.db = new DatabaseSync(SQLITE_FILE);
     this.initTables();
     this.seedInitialData();
@@ -75,11 +174,9 @@ class SqliteDatabase {
     const existingSettings = this.db.prepare('SELECT COUNT(*) AS count FROM settings').get();
     if (existingSettings.count === 0) {
       const insertSetting = this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-      insertSetting.run('storeName', 'Toko Berkah Nusantara');
-      insertSetting.run('tagline', 'Kuliner Lezat & Segar Siap Antar Setiap Hari');
-      insertSetting.run('phone', '6281234567890');
-      insertSetting.run('address', 'Jl. Melati No. 12, Kebayoran Baru, Jakarta Selatan');
-      insertSetting.run('currency', 'Rp');
+      for (const [key, val] of Object.entries(INITIAL_SETTINGS)) {
+        insertSetting.run(key, val);
+      }
     }
 
     // Seed Admin
@@ -95,9 +192,9 @@ class SqliteDatabase {
     const existingCategories = this.db.prepare('SELECT COUNT(*) AS count FROM categories').get();
     if (existingCategories.count === 0) {
       const insertCat = this.db.prepare('INSERT INTO categories (id, name, slug) VALUES (?, ?, ?)');
-      insertCat.run('cat-1', 'Makanan', 'makanan');
-      insertCat.run('cat-2', 'Minuman', 'minuman');
-      insertCat.run('cat-3', 'Camilan', 'camilan');
+      for (const cat of INITIAL_CATEGORIES) {
+        insertCat.run(cat.id, cat.name, cat.slug);
+      }
     }
 
     // Seed Products
@@ -108,91 +205,7 @@ class SqliteDatabase {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
-      const initialProducts = [
-        {
-          id: 'prod-1',
-          name: 'Nasi Goreng Spesial Toko Berkah',
-          categoryId: 'cat-1',
-          price: 28000,
-          stockStatus: 'Tersedia',
-          description: 'Nasi goreng racikan bumbu rempah otentik disajikan dengan telur mata sapi, ayam suwir, dan kerupuk renyah.',
-          image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-2',
-          name: 'Ayam Bakar Madu Pedas',
-          categoryId: 'cat-1',
-          price: 32000,
-          stockStatus: 'Tersedia',
-          description: 'Potongan ayam bakar empuk dilumuri saus madu gurih pedas manis dengan lalapan segar dan sambal terasi.',
-          image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-3',
-          name: 'Mie Aceh Tumis Daging Sapi',
-          categoryId: 'cat-1',
-          price: 30000,
-          stockStatus: 'Tersedia',
-          description: 'Mie kuning kenyal khas Aceh dimasak bumbu kari pekat dengan irisan daging sapi empuk, tauge, dan emping.',
-          image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-4',
-          name: 'Es Kopi Susu Gula Aren',
-          categoryId: 'cat-2',
-          price: 18000,
-          stockStatus: 'Tersedia',
-          description: 'Espresso robusta & arabica pilihan dipadu susu creamy fresh dan sirup gula aren murni organik.',
-          image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-5',
-          name: 'Matcha Latte Creamy Frappe',
-          categoryId: 'cat-2',
-          price: 22000,
-          stockStatus: 'Tersedia',
-          description: 'Bubuk green tea matcha Uji Jepang premium dipadu susu segar dingin yang lembut dan harum.',
-          image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-6',
-          name: 'Es Lemon Tea Segar Jumbo',
-          categoryId: 'cat-2',
-          price: 10000,
-          stockStatus: 'Tersedia',
-          description: 'Seduhan teh melati wangi dengan perasan lemon asli segar dan es batu dingin, penghilang dahaga terbaik.',
-          image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-7',
-          name: 'Pisang Goreng Keju Cokelat Lumer',
-          categoryId: 'cat-3',
-          price: 18000,
-          stockStatus: 'Tersedia',
-          description: 'Pisang raja manis digoreng tepung crispy diselimuti keju parut gurih dan saus cokelat Belgian lumer.',
-          image: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-8',
-          name: 'Dimsum Mentai Panggang (4 pcs)',
-          categoryId: 'cat-3',
-          price: 25000,
-          stockStatus: 'Tersedia',
-          description: 'Dimsum ayam udang lembut dengan topping saus mentai gurih dibakar torch aroma smoky menggoda.',
-          image: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-9',
-          name: 'Cireng Crispy Bumbu Rujak Pedas',
-          categoryId: 'cat-3',
-          price: 15000,
-          stockStatus: 'Habis',
-          description: 'Cireng kenyal gurih dengan lapisan renyah di luar, dicocol saus rujak manis asam pedas nagih.',
-          image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=800&q=80'
-        }
-      ];
-
-      for (const p of initialProducts) {
+      for (const p of INITIAL_PRODUCTS) {
         insertProduct.run(p.id, p.name, p.categoryId, p.price, p.stockStatus, p.description, p.image);
       }
     }
@@ -227,7 +240,6 @@ class SqliteDatabase {
 
   // --- Category SQL Operations ---
   getCategories() {
-    // Relational SQL query with LEFT JOIN and COUNT
     return this.db.prepare(`
       SELECT 
         c.id, 
@@ -380,4 +392,218 @@ class SqliteDatabase {
   }
 }
 
-export const db = new SqliteDatabase();
+class JsonDatabase {
+  constructor() {
+    this.data = this.loadOrSeed();
+  }
+
+  loadOrSeed() {
+    if (fs.existsSync(JSON_FILE)) {
+      try {
+        return JSON.parse(fs.readFileSync(JSON_FILE, 'utf-8'));
+      } catch (err) {
+        console.error('Gagal membaca file database JSON, membuat ulang data awal:', err.message);
+      }
+    }
+
+    const now = new Date().toISOString();
+    const initialData = {
+      settings: { ...INITIAL_SETTINGS },
+      admins: [
+        {
+          id: 'admin-1',
+          name: 'Owner Toko Berkah',
+          email: 'admin@katalogwa.com',
+          password: bcrypt.hashSync('admin123', 10),
+          createdAt: now
+        }
+      ],
+      categories: INITIAL_CATEGORIES.map((c) => ({ ...c })),
+      products: INITIAL_PRODUCTS.map((p, idx) => ({
+        ...p,
+        createdAt: new Date(Date.now() - idx * 1000).toISOString(),
+        updatedAt: new Date(Date.now() - idx * 1000).toISOString()
+      }))
+    };
+
+    this.save(initialData);
+    return initialData;
+  }
+
+  save(data = this.data) {
+    fs.writeFileSync(JSON_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  }
+
+  getSettings() {
+    return { ...this.data.settings };
+  }
+
+  updateSettings(newSettings) {
+    for (const [key, val] of Object.entries(newSettings)) {
+      this.data.settings[key] = String(val);
+    }
+    this.save();
+    return this.getSettings();
+  }
+
+  getAdmin() {
+    return this.data.admins[0] || null;
+  }
+
+  getCategories() {
+    return this.data.categories.map((c) => {
+      const productCount = this.data.products.filter((p) => p.categoryId === c.id).length;
+      return {
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        createdAt: c.createdAt,
+        productCount
+      };
+    });
+  }
+
+  getCategoryById(id) {
+    const cat = this.data.categories.find((c) => c.id === id);
+    if (!cat) return undefined;
+    return { id: cat.id, name: cat.name, slug: cat.slug };
+  }
+
+  addCategory(name) {
+    const exists = this.data.categories.some(
+      (c) => c.name.toLowerCase() === name.toLowerCase()
+    );
+    if (exists) {
+      throw new Error('Kategori dengan nama tersebut sudah ada');
+    }
+    const id = `cat-${Date.now()}`;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const createdAt = new Date().toISOString();
+    this.data.categories.push({ id, name, slug, createdAt });
+    this.save();
+    return { id, name, slug, productCount: 0 };
+  }
+
+  updateCategory(id, name) {
+    const idx = this.data.categories.findIndex((c) => c.id === id);
+    if (idx === -1) return null;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    this.data.categories[idx].name = name;
+    this.data.categories[idx].slug = slug;
+    this.save();
+    return { id, name, slug };
+  }
+
+  deleteCategory(id) {
+    const idx = this.data.categories.findIndex((c) => c.id === id);
+    if (idx === -1) return false;
+    this.data.categories.splice(idx, 1);
+    this.save();
+    return true;
+  }
+
+  getProducts(filters = {}) {
+    const catMap = new Map(this.data.categories.map((c) => [c.id, c.name]));
+    let list = this.data.products
+      .filter((p) => catMap.has(p.categoryId))
+      .map((p) => ({
+        ...p,
+        categoryName: catMap.get(p.categoryId)
+      }));
+
+    if (filters.categoryId) {
+      list = list.filter((p) => p.categoryId === filters.categoryId);
+    }
+
+    if (filters.stockStatus) {
+      list = list.filter((p) => p.stockStatus === filters.stockStatus);
+    }
+
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      list = list.filter(
+        (p) =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.description && p.description.toLowerCase().includes(q))
+      );
+    }
+
+    return list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }
+
+  getProductById(id) {
+    const p = this.data.products.find((item) => item.id === id);
+    if (!p) return undefined;
+    const cat = this.getCategoryById(p.categoryId);
+    return {
+      ...p,
+      categoryName: cat ? cat.name : ''
+    };
+  }
+
+  addProduct(productData) {
+    const id = `prod-${Date.now()}`;
+    const now = new Date().toISOString();
+    const newProduct = {
+      id,
+      name: productData.name,
+      categoryId: productData.categoryId,
+      price: Number(productData.price) || 0,
+      stockStatus: productData.stockStatus || 'Tersedia',
+      description: productData.description || '',
+      image: productData.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+      createdAt: now,
+      updatedAt: now
+    };
+    this.data.products.unshift(newProduct);
+    this.save();
+    return this.getProductById(id);
+  }
+
+  updateProduct(id, productData) {
+    const idx = this.data.products.findIndex((p) => p.id === id);
+    if (idx === -1) return null;
+
+    const current = this.data.products[idx];
+    this.data.products[idx] = {
+      ...current,
+      name: productData.name !== undefined ? productData.name : current.name,
+      categoryId: productData.categoryId !== undefined ? productData.categoryId : current.categoryId,
+      price: productData.price !== undefined ? Number(productData.price) : current.price,
+      stockStatus: productData.stockStatus !== undefined ? productData.stockStatus : current.stockStatus,
+      description: productData.description !== undefined ? productData.description : current.description,
+      image: productData.image !== undefined ? productData.image : current.image,
+      updatedAt: new Date().toISOString()
+    };
+    this.save();
+    return this.getProductById(id);
+  }
+
+  toggleStock(id) {
+    const idx = this.data.products.findIndex((p) => p.id === id);
+    if (idx === -1) return null;
+    const current = this.data.products[idx];
+    current.stockStatus = current.stockStatus === 'Tersedia' ? 'Habis' : 'Tersedia';
+    current.updatedAt = new Date().toISOString();
+    this.save();
+    return this.getProductById(id);
+  }
+
+  deleteProduct(id) {
+    const idx = this.data.products.findIndex((p) => p.id === id);
+    if (idx === -1) return false;
+    this.data.products.splice(idx, 1);
+    this.save();
+    return true;
+  }
+}
+
+let dbInstance;
+try {
+  const sqliteModule = await import('node:sqlite');
+  dbInstance = new SqliteDatabase(sqliteModule.DatabaseSync);
+} catch {
+  dbInstance = new JsonDatabase();
+}
+
+export const db = dbInstance;
