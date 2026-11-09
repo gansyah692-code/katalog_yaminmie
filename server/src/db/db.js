@@ -7,6 +7,70 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const SQLITE_FILE = path.join(__dirname, 'katalogwa.sqlite');
+const BAKERY_CATEGORIES = [
+  { id: 'cat-1', name: 'Birthday Cake', slug: 'birthday-cake' },
+  { id: 'cat-2', name: 'Cupcake', slug: 'cupcake' },
+  { id: 'cat-3', name: 'Donuts', slug: 'donuts' },
+  { id: 'cat-4', name: 'Brownies', slug: 'brownies' },
+  { id: 'cat-5', name: 'Cookies', slug: 'cookies' },
+  { id: 'cat-6', name: 'Sponge Cake', slug: 'sponge-cake' },
+  { id: 'cat-7', name: 'Pastry', slug: 'pastry' },
+  { id: 'cat-8', name: 'Traditional Cakes', slug: 'traditional-cakes' }
+];
+const BAKERY_PRODUCTS = [
+  {
+    id: 'prod-1', name: 'Golden Hour Birthday Cake', categoryId: 'cat-1', price: 285000,
+    description: 'Vanilla sponge lembut dengan buttercream ringan dan sentuhan buah segar untuk hari paling istimewa.',
+    image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-2', name: 'Vanilla Bloom Cupcake Box', categoryId: 'cat-2', price: 85000,
+    description: 'Enam cupcake vanilla moist dengan swirl buttercream lembut, dihias manis untuk berbagi.',
+    image: 'https://images.unsplash.com/photo-1519869325930-281384150729?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-3', name: 'Classic Cinnamon Donuts', categoryId: 'cat-3', price: 65000,
+    description: 'Donat empuk dengan lapisan gula kayu manis yang harum, dibuat fresh setiap hari.',
+    image: 'https://images.unsplash.com/photo-1551024506-0cc8c5e2e4a9?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-4', name: 'Fudgy Chocolate Brownies', categoryId: 'cat-4', price: 95000,
+    description: 'Brownies cokelat pekat dengan bagian tengah fudgy dan taburan cokelat pilihan.',
+    image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-5', name: 'Brown Butter Cookies', categoryId: 'cat-5', price: 72000,
+    description: 'Cookies renyah di tepi, chewy di tengah, dengan brown butter dan chocolate chips.',
+    image: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-6', name: 'Cloud Nine Sponge Cake', categoryId: 'cat-6', price: 175000,
+    description: 'Sponge cake ringan berlapis cream dan buah pilihan, lembut seperti awan di setiap gigitan.',
+    image: 'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-7', name: 'Butter Croissant', categoryId: 'cat-7', price: 38000,
+    description: 'Pastry berlapis dengan bagian luar renyah dan aroma butter yang hangat.',
+    image: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=85'
+  },
+  {
+    id: 'prod-8', name: 'Klepon Cake', categoryId: 'cat-8', price: 145000,
+    description: 'Kreasi cake pandan lembut dengan gula aren dan kelapa, terinspirasi dari jajanan tradisional.',
+    image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=800&q=85'
+  }
+].map((product) => ({ ...product, stockStatus: 'Tersedia' }));
+
+const LEGACY_DEMO_PRODUCTS = [
+  'Nasi Goreng Spesial Toko Berkah',
+  'Ayam Bakar Madu Pedas',
+  'Mie Aceh Tumis Daging Sapi',
+  'Es Kopi Susu Gula Aren',
+  'Matcha Latte Creamy Frappe',
+  'Es Lemon Tea Segar Jumbo',
+  'Pisang Goreng Keju Cokelat Lumer',
+  'Dimsum Mentai Panggang (4 pcs)',
+  'Cireng Crispy Bumbu Rujak Pedas'
+];
 
 class SqliteDatabase {
   constructor() {
@@ -25,9 +89,14 @@ class SqliteDatabase {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
         slug TEXT NOT NULL,
+        image TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    const categoryColumns = this.db.prepare('PRAGMA table_info(categories)').all();
+    if (!categoryColumns.some((column) => column.name === 'image')) {
+      this.db.exec('ALTER TABLE categories ADD COLUMN image TEXT');
+    }
 
     // 2. Products Table (Relational with Foreign Key to categories)
     this.db.exec(`
@@ -63,6 +132,22 @@ class SqliteDatabase {
       );
     `);
 
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id TEXT PRIMARY KEY,
+        order_code TEXT NOT NULL UNIQUE,
+        tracking_token TEXT NOT NULL UNIQUE,
+        customer_name TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        items_json TEXT NOT NULL,
+        total INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        confirmed_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at DESC);
+    `);
+
     // Indexes
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id);
@@ -75,8 +160,8 @@ class SqliteDatabase {
     const existingSettings = this.db.prepare('SELECT COUNT(*) AS count FROM settings').get();
     if (existingSettings.count === 0) {
       const insertSetting = this.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-      insertSetting.run('storeName', 'Toko Berkah Nusantara');
-      insertSetting.run('tagline', 'Kuliner Lezat & Segar Siap Antar Setiap Hari');
+      insertSetting.run('storeName', "T'xie Cake");
+      insertSetting.run('tagline', 'A Little Sweetness, A Lot of Happiness.');
       insertSetting.run('phone', '6281234567890');
       insertSetting.run('address', 'Jl. Melati No. 12, Kebayoran Baru, Jakarta Selatan');
       insertSetting.run('currency', 'Rp');
@@ -95,9 +180,9 @@ class SqliteDatabase {
     const existingCategories = this.db.prepare('SELECT COUNT(*) AS count FROM categories').get();
     if (existingCategories.count === 0) {
       const insertCat = this.db.prepare('INSERT INTO categories (id, name, slug) VALUES (?, ?, ?)');
-      insertCat.run('cat-1', 'Makanan', 'makanan');
-      insertCat.run('cat-2', 'Minuman', 'minuman');
-      insertCat.run('cat-3', 'Camilan', 'camilan');
+      for (const category of BAKERY_CATEGORIES) {
+        insertCat.run(category.id, category.name, category.slug);
+      }
     }
 
     // Seed Products
@@ -108,93 +193,47 @@ class SqliteDatabase {
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
 
-      const initialProducts = [
-        {
-          id: 'prod-1',
-          name: 'Nasi Goreng Spesial Toko Berkah',
-          categoryId: 'cat-1',
-          price: 28000,
-          stockStatus: 'Tersedia',
-          description: 'Nasi goreng racikan bumbu rempah otentik disajikan dengan telur mata sapi, ayam suwir, dan kerupuk renyah.',
-          image: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-2',
-          name: 'Ayam Bakar Madu Pedas',
-          categoryId: 'cat-1',
-          price: 32000,
-          stockStatus: 'Tersedia',
-          description: 'Potongan ayam bakar empuk dilumuri saus madu gurih pedas manis dengan lalapan segar dan sambal terasi.',
-          image: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-3',
-          name: 'Mie Aceh Tumis Daging Sapi',
-          categoryId: 'cat-1',
-          price: 30000,
-          stockStatus: 'Tersedia',
-          description: 'Mie kuning kenyal khas Aceh dimasak bumbu kari pekat dengan irisan daging sapi empuk, tauge, dan emping.',
-          image: 'https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-4',
-          name: 'Es Kopi Susu Gula Aren',
-          categoryId: 'cat-2',
-          price: 18000,
-          stockStatus: 'Tersedia',
-          description: 'Espresso robusta & arabica pilihan dipadu susu creamy fresh dan sirup gula aren murni organik.',
-          image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-5',
-          name: 'Matcha Latte Creamy Frappe',
-          categoryId: 'cat-2',
-          price: 22000,
-          stockStatus: 'Tersedia',
-          description: 'Bubuk green tea matcha Uji Jepang premium dipadu susu segar dingin yang lembut dan harum.',
-          image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-6',
-          name: 'Es Lemon Tea Segar Jumbo',
-          categoryId: 'cat-2',
-          price: 10000,
-          stockStatus: 'Tersedia',
-          description: 'Seduhan teh melati wangi dengan perasan lemon asli segar dan es batu dingin, penghilang dahaga terbaik.',
-          image: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-7',
-          name: 'Pisang Goreng Keju Cokelat Lumer',
-          categoryId: 'cat-3',
-          price: 18000,
-          stockStatus: 'Tersedia',
-          description: 'Pisang raja manis digoreng tepung crispy diselimuti keju parut gurih dan saus cokelat Belgian lumer.',
-          image: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-8',
-          name: 'Dimsum Mentai Panggang (4 pcs)',
-          categoryId: 'cat-3',
-          price: 25000,
-          stockStatus: 'Tersedia',
-          description: 'Dimsum ayam udang lembut dengan topping saus mentai gurih dibakar torch aroma smoky menggoda.',
-          image: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=800&q=80'
-        },
-        {
-          id: 'prod-9',
-          name: 'Cireng Crispy Bumbu Rujak Pedas',
-          categoryId: 'cat-3',
-          price: 15000,
-          stockStatus: 'Habis',
-          description: 'Cireng kenyal gurih dengan lapisan renyah di luar, dicocol saus rujak manis asam pedas nagih.',
-          image: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?auto=format&fit=crop&w=800&q=80'
-        }
-      ];
-
-      for (const p of initialProducts) {
+      for (const p of BAKERY_PRODUCTS) {
         insertProduct.run(p.id, p.name, p.categoryId, p.price, p.stockStatus, p.description, p.image);
       }
+    }
+
+    this.migrateLegacyDemoCatalog();
+  }
+
+  migrateLegacyDemoCatalog() {
+    const settings = this.getSettings();
+    if (settings.storeName !== 'Toko Berkah Nusantara') return;
+
+    const currentCategories = this.db.prepare('SELECT name FROM categories ORDER BY id').all().map((row) => row.name);
+    if (currentCategories.join('|') !== 'Makanan|Minuman|Camilan') return;
+
+    const currentProducts = this.db.prepare('SELECT id, name FROM products ORDER BY id').all();
+    if (
+      currentProducts.length !== LEGACY_DEMO_PRODUCTS.length ||
+      currentProducts.some((product, index) => product.id !== `prod-${index + 1}` || product.name !== LEGACY_DEMO_PRODUCTS[index])
+    ) return;
+
+    this.db.exec('BEGIN');
+    try {
+      this.db.exec('DELETE FROM products; DELETE FROM categories;');
+      const insertCategory = this.db.prepare('INSERT INTO categories (id, name, slug) VALUES (?, ?, ?)');
+      for (const category of BAKERY_CATEGORIES) {
+        insertCategory.run(category.id, category.name, category.slug);
+      }
+      const insertProduct = this.db.prepare(`
+        INSERT INTO products (id, name, category_id, price, stock_status, description, image)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const product of BAKERY_PRODUCTS) {
+        insertProduct.run(product.id, product.name, product.categoryId, product.price, product.stockStatus, product.description, product.image);
+      }
+      this.db.prepare('UPDATE settings SET value = ? WHERE key = ?').run("T'xie Cake", 'storeName');
+      this.db.prepare('UPDATE settings SET value = ? WHERE key = ?').run('A Little Sweetness, A Lot of Happiness.', 'tagline');
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
   }
 
@@ -225,6 +264,90 @@ class SqliteDatabase {
     return this.db.prepare('SELECT id, name, email, password FROM admins LIMIT 1').get();
   }
 
+  updateAdminProfile(id, { name, password }) {
+    const result = this.db.prepare(`
+      UPDATE admins
+      SET name = ?, password = ?
+      WHERE id = ?
+    `).run(name, password, id);
+
+    return result.changes > 0;
+  }
+
+  createOrder({ id, orderCode, trackingToken, customerName, notes, items, total }) {
+    this.db.prepare(`
+      INSERT INTO orders (
+        id, order_code, tracking_token, customer_name, notes, items_json, total
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, orderCode, trackingToken, customerName, notes, JSON.stringify(items), total);
+
+    return this.getOrderById(id);
+  }
+
+  getOrderById(id) {
+    const row = this.db.prepare(`
+      SELECT id, order_code AS orderCode, customer_name AS customerName,
+        notes, items_json AS itemsJson, total, status,
+        created_at AS createdAt, confirmed_at AS confirmedAt
+      FROM orders
+      WHERE id = ?
+    `).get(id);
+    return row ? this.deserializeOrder(row) : null;
+  }
+
+  getOrderByTrackingToken(trackingToken) {
+    const row = this.db.prepare(`
+      SELECT id, order_code AS orderCode, customer_name AS customerName,
+        notes, items_json AS itemsJson, total, status,
+        created_at AS createdAt, confirmed_at AS confirmedAt
+      FROM orders
+      WHERE tracking_token = ?
+    `).get(trackingToken);
+    return row ? this.deserializeOrder(row) : null;
+  }
+
+  getOrders(status) {
+    const rows = status
+      ? this.db.prepare(`
+        SELECT id, order_code AS orderCode, customer_name AS customerName,
+          notes, items_json AS itemsJson, total, status,
+          created_at AS createdAt, confirmed_at AS confirmedAt
+        FROM orders
+        WHERE status = ?
+        ORDER BY created_at DESC, rowid DESC
+      `).all(status)
+      : this.db.prepare(`
+        SELECT id, order_code AS orderCode, customer_name AS customerName,
+          notes, items_json AS itemsJson, total, status,
+          created_at AS createdAt, confirmed_at AS confirmedAt
+        FROM orders
+        ORDER BY created_at DESC, rowid DESC
+      `).all();
+    return rows.map((row) => this.deserializeOrder(row));
+  }
+
+  confirmOrder(id) {
+    const result = this.db.prepare(`
+      UPDATE orders
+      SET status = 'confirmed', confirmed_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND status = 'pending'
+    `).run(id);
+    return result.changes > 0 ? this.getOrderById(id) : null;
+  }
+
+  deleteConfirmedOrder(id) {
+    const result = this.db.prepare(`
+      DELETE FROM orders
+      WHERE id = ? AND status = 'confirmed'
+    `).run(id);
+    return result.changes > 0;
+  }
+
+  deserializeOrder(row) {
+    const { itemsJson, ...order } = row;
+    return { ...order, items: JSON.parse(itemsJson) };
+  }
+
   // --- Category SQL Operations ---
   getCategories() {
     // Relational SQL query with LEFT JOIN and COUNT
@@ -233,6 +356,7 @@ class SqliteDatabase {
         c.id, 
         c.name, 
         c.slug, 
+        c.image,
         c.created_at AS createdAt,
         COUNT(p.id) AS productCount
       FROM categories c
@@ -243,7 +367,7 @@ class SqliteDatabase {
   }
 
   getCategoryById(id) {
-    return this.db.prepare('SELECT id, name, slug FROM categories WHERE id = ?').get(id);
+    return this.db.prepare('SELECT id, name, slug, image FROM categories WHERE id = ?').get(id);
   }
 
   addCategory(name) {
@@ -253,11 +377,11 @@ class SqliteDatabase {
     return { id, name, slug, productCount: 0 };
   }
 
-  updateCategory(id, name) {
+  updateCategory(id, name, image) {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const res = this.db.prepare('UPDATE categories SET name = ?, slug = ? WHERE id = ?').run(name, slug, id);
+    const res = this.db.prepare('UPDATE categories SET name = ?, slug = ?, image = COALESCE(?, image) WHERE id = ?').run(name, slug, image ?? null, id);
     if (res.changes === 0) return null;
-    return { id, name, slug };
+    return this.getCategoryById(id);
   }
 
   deleteCategory(id) {

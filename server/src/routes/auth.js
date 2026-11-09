@@ -1,12 +1,7 @@
-<<<<<<< HEAD
-
-=======
->>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db/db.js';
-<<<<<<< HEAD
 import {
     authenticateToken,
     JWT_SECRET
@@ -95,65 +90,6 @@ router.get('/me', authenticateToken, (req, res) => {
 
     res.json({
         success: true,
-=======
-import {authenticatoken, jwt_SECRET} from '../eidlware/auth.js';
-
-const router = express.router();
-
-// admin login 
-router.post('/login', (req, res) => {
-    const { email, password} = req.body;
-
-    if (!email || !password) {
-        return res.status(480).json({
-            succes: false;
-            massage: 'email dan passsword wajib di isi'
-        })
-    }
-})
-const admin = db.getadmin();
-
-//validate email 
-if (email.trim().tolowerCase() !== admin.email.tolowerCase()){
-    return res.status(481).json({
-        succes: false,
-        message: 'email atau password salah'
-    });
-}
-
-// vallidate password 
-const isMath = bcrypt.compareSync(password, admin. 
-    password);
-    if (! ismatch) {
-        return res.status(481).json({
-            succes: false,
-            message: 'email atau passwrod salah'
-        });
-    }
-// generate jwt token (expires in 24 hours)
-const token = jwt.sign(
-    { id: admin.id, email: admin, email, name: admin,name },
-    jwt_SECRET,
-    { expiresIn: '24' }
-);
-
-return res.json({
-    succes: true,
-    message: 'login berhasil',
-    token,
-    user: {
-        id: admin.id,
-        name: admin.name,
-        email: admin.email
-    }
-});
-
-// verify token & get current profile
-router.get('/me', authenticatoken, (req,res) => {
-    const admin = db.getAdmin();
-    res.json({ 
-        succes: true,
->>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
         user: {
             id: admin.id,
             name: admin.name,
@@ -161,9 +97,73 @@ router.get('/me', authenticatoken, (req,res) => {
         }
     });
 });
-<<<<<<< HEAD
+
+router.put('/profile', authenticateToken, (req, res) => {
+    try {
+        const { name, currentPassword, newPassword } = req.body;
+        const admin = db.getAdmin();
+
+        if (!admin || admin.id !== req.user.id) {
+            return res.status(404).json({
+                success: false,
+                message: 'Admin tidak ditemukan'
+            });
+        }
+
+        if (typeof name !== 'string' || !name.trim() || name.trim().length > 80) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nama admin wajib diisi dan maksimal 80 karakter'
+            });
+        }
+
+        let passwordHash = admin.password;
+        if (newPassword !== undefined && newPassword !== '') {
+            if (typeof currentPassword !== 'string' || !bcrypt.compareSync(currentPassword, admin.password)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password saat ini tidak sesuai'
+                });
+            }
+
+            if (typeof newPassword !== 'string' || newPassword.length < 8) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password baru minimal 8 karakter'
+                });
+            }
+
+            passwordHash = bcrypt.hashSync(newPassword, 10);
+        }
+
+        const updated = db.updateAdminProfile(admin.id, {
+            name: name.trim(),
+            password: passwordHash
+        });
+
+        if (!updated) {
+            return res.status(500).json({
+                success: false,
+                message: 'Profil admin gagal diperbarui'
+            });
+        }
+
+        return res.json({
+            success: true,
+            message: 'Profil admin berhasil diperbarui',
+            user: {
+                id: admin.id,
+                name: name.trim(),
+                email: admin.email
+            }
+        });
+    } catch (error) {
+        console.error('Update admin profile error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan saat memperbarui profil admin'
+        });
+    }
+});
 
 export default router;
-=======
-export default router;
->>>>>>> af36e91e9801b7c8e3d5da20e3b25023f356a309
