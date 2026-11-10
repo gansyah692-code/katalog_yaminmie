@@ -36,10 +36,11 @@ export const fetchStoreSettings = async () => {
 };
 
 export const updateStoreSettings = async (settings) => {
+  const isFormData = settings instanceof FormData;
   const res = await fetch(`${API_BASE}/store`, {
     method: 'PUT',
-    headers: getHeaders(),
-    body: JSON.stringify(settings)
+    headers: getHeaders(isFormData),
+    body: isFormData ? settings : JSON.stringify(settings)
   });
   return handleResponse(res);
 };
@@ -59,11 +60,12 @@ export const createCategory = async (name) => {
   return handleResponse(res);
 };
 
-export const updateCategory = async (id, name) => {
+export const updateCategory = async (id, payload) => {
+  const isFormData = payload instanceof FormData;
   const res = await fetch(`${API_BASE}/categories/${id}`, {
     method: 'PUT',
-    headers: getHeaders(),
-    body: JSON.stringify({ name })
+    headers: getHeaders(isFormData),
+    body: isFormData ? payload : JSON.stringify({ name: payload })
   });
   return handleResponse(res);
 };
@@ -137,5 +139,55 @@ export const fetchAdminProfile = async () => {
   const res = await fetch(`${API_BASE}/auth/me`, {
     headers: getHeaders()
   });
+  return handleResponse(res);
+};
+
+export const updateAdminProfile = async (profile) => {
+  const res = await fetch(`${API_BASE}/auth/profile`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(profile)
+  });
+  return handleResponse(res);
+};
+
+export const createOrder = async (order) => {
+  const res = await fetch(`${API_BASE}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(order)
+  });
+  return handleResponse(res);
+};
+
+export const fetchAdminOrders = async (status) => {
+  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await fetch(`${API_BASE}/orders/admin${params}`, {
+    headers: getHeaders()
+  });
+  return handleResponse(res);
+};
+
+export const confirmOrder = async (id) => {
+  const res = await fetch(`${API_BASE}/orders/admin/${encodeURIComponent(id)}/confirm`, {
+    method: 'PATCH',
+    headers: getHeaders()
+  });
+  return handleResponse(res);
+};
+
+export const deleteConfirmedOrder = async (id) => {
+  const res = await fetch(`${API_BASE}/orders/admin/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: getHeaders()
+  });
+  if (res.status === 404) {
+    throw new Error('Endpoint hapus riwayat belum tersedia. Restart backend dari folder server, lalu coba lagi.');
+  }
+  return handleResponse(res);
+};
+
+export const fetchOrderStatus = async (trackingToken) => {
+  const res = await fetch(`${API_BASE}/orders/track/${encodeURIComponent(trackingToken)}`);
   return handleResponse(res);
 };

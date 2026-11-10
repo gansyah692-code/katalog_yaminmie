@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Image as ImageIcon, Save, AlertCircle } from 'lucide-react';
 
-const PRESET_FOOD_IMAGES = [
-    { label: 'Nasi Goreng', url: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Ayam Bakar', url: 'https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Kopi Susu', url: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Matcha Frappe', url: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Pisang Keju', url: 'https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=800&q=80' },
-    { label: 'Dimsum Mentai', url: 'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?auto=format&fit=crop&w=800&q=80' }
+const PRESET_CAKE_IMAGES = [
+    { label: 'Birthday Cake', url: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=800&q=85' },
+    { label: 'Cupcake', url: 'https://images.unsplash.com/photo-1519869325930-281384150729?auto=format&fit=crop&w=800&q=85' },
+    { label: 'Donuts', url: 'https://images.unsplash.com/photo-1551024506-0cc8c5e2e4a9?auto=format&fit=crop&w=800&q=85' },
+    { label: 'Brownies', url: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?auto=format&fit=crop&w=800&q=85' },
+    { label: 'Cookies', url: 'https://images.unsplash.com/photo-1499636136210-6f4ee915583e?auto=format&fit=crop&w=800&q=85' },
+    { label: 'Pastry', url: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=85' }
 ];
 
 export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, categories }) => {
@@ -38,8 +38,8 @@ export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, cate
             setPrice('');
             setStockStatus('Tersedia');
             setDescription('');
-            setImageUrl(PRESET_FOOD_IMAGES[0].url);
-            setPreviewSrc(PRESET_FOOD_IMAGES[0].url);
+            setImageUrl(PRESET_CAKE_IMAGES[0].url);
+            setPreviewSrc(PRESET_CAKE_IMAGES[0].url);
             setSelectedFile(null);
         }
         setErrorMsg('');
@@ -125,7 +125,7 @@ export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, cate
                             {editingProduct ? 'Edit Informasi Produk' : 'Tambah Produk Baru'}
                         </h2>
                         <p className="modal-subtitle">
-                            Lengkapi data produk untuk katalog KatalogWA
+                            Lengkapi data produk untuk katalog T’xie Cake
                         </p>
                     </div>
                     <button className="btn-icon" onClick={onClose} title="Tutup">
@@ -170,7 +170,7 @@ export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, cate
                                 <div className="preset-images-row">
                                     <span className="preset-label">Atau pilih sampel cepat:</span>
                                     <div className="preset-thumbs">
-                                        {PRESET_FOOD_IMAGES.map((preset, idx) => (
+                                        {PRESET_CAKE_IMAGES.map((preset, idx) => (
                                             <button
                                                 type="button"
                                                 key={idx}
@@ -195,7 +195,7 @@ export const ProductFormModal = ({ isOpen, onClose, onSave, editingProduct, cate
                             <input
                                 type="text"
                                 className="form-input"
-                                placeholder="cth: Nasi Goreng Spesial"
+                                placeholder="cth: Golden Hour Birthday Cake"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 required
