@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, AlertCircle, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
-import { loginAdmin } from '../services/api';
+import { loginAdmin, setAuthToken } from '../services/api';
 
 export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
     const [email, setEmail] = useState('');
@@ -59,7 +59,7 @@ export const AdminLoginModal = ({ isOpen, onClose, onSuccess }) => {
                         </div>
                         <div>
                             <h2 className="modal-title">Login Admin Store</h2>
-                            <p className="modal-subtitle">Kelola produk & kategori KatalogWA</p>
+                            <p className="modal-subtitle">Kelola produk & kategori T’xie Cake</p>
                         </div>
                     </div>
                     <button className="btn-icon" onClick={onClose} title="Tutup">

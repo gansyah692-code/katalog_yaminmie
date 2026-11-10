@@ -9,7 +9,7 @@ export const OrderModal = ({ product, storeSettings, onClose }) => {
 
     if (!product) return null;
 
-    const storeName = storeSettings?.storeName || 'Toko Berkah Nusantara';
+    const storeName = storeSettings?.storeName || 'T’xie Cake';
     const storePhone = (storeSettings?.phone || '6281234567890').replace(/[^0-9]/g, '');
 
     const formatRupiah = (num) => {

@@ -1,7 +1,7 @@
 import React from 'react';
-import { MessageCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowUpRight, CheckCircle2, Plus, XCircle } from 'lucide-react';
 
-export const ProductCard = ({ product, onSelectProduct }) => {
+export const ProductCard = ({ product, onSelectProduct, onAddToCart, badge }) => {
     const isAvailable = product.stockStatus === 'Tersedia';
 
     // Format Indonesian Rupiah
@@ -13,12 +13,11 @@ export const ProductCard = ({ product, onSelectProduct }) => {
         }).format(number);
     };
 
-    const fallbackImage = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=400&q=80';
+    const fallbackImage = 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=700&q=80';
     const displayImage = product.image && product.image !== '-' ? product.image : fallbackImage;
 
     return (
-        <div className={`product-card ${!isAvailable ? 'out-of-stock' : ''}`} id={`product-${product.id}`}>
-            {/* Product Image Box */}
+        <article className={`product-card ${!isAvailable ? 'out-of-stock' : ''}`} id={`product-${product.id}`}>
             <div className="product-image-box">
                 <img
                     src={displayImage}
@@ -31,58 +30,31 @@ export const ProductCard = ({ product, onSelectProduct }) => {
                     }}
                 />
 
-                {/* Category Pill Tag */}
-                <span className="product-cat-tag">
-                    {product.categoryName || 'Produk'}
-                </span>
-
-                {/* Stock Status Badge */}
+                {badge && <span className="product-feature-badge">{badge}</span>}
+                <button className="product-quick-view" onClick={() => onSelectProduct(product)} aria-label={`Lihat detail ${product.name}`}><ArrowUpRight size={18} /></button>
                 <span className={`product-stock-tag ${isAvailable ? 'available' : 'unavailable'}`}>
-                    {isAvailable ? (
-                        <>
-                            <CheckCircle2 size={12} />
-                            <span>Tersedia</span>
-                        </>
-                    ) : (
-                        <>
-                            <XCircle size={12} />
-                            <span>Stok Habis</span>
-                        </>
-                    )}
+                    {isAvailable ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+                    <span>{isAvailable ? 'Fresh today' : 'Sold out'}</span>
                 </span>
             </div>
-
-            {/* Product Details */}
             <div className="product-content">
-                <h3 className="product-title" title={product.name}>
+                <span className="product-cat-tag">{product.categoryName || 'T’xie Cake'}</span>
+                <button className="product-title-button" onClick={() => onSelectProduct(product)}>
                     {product.name}
-                </h3>
-
-                {product.description && (
-                    <p className="product-desc">
-                        {product.description}
-                    </p>
-                )}
-
-                {/* Price & Order Action */}
-                <div className="product-bottom-row" style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', paddingTop: '0.85rem', borderTop: '1px solid var(--slate-100)' }}>
-                    <div className="product-price-group">
-                        <span className="price-label">Harga</span>
-                        <span className="product-price">{formatRupiah(product.price)}</span>
-                    </div>
-
+                </button>
+                <p className="product-desc">{product.description || 'Dibuat fresh dengan bahan pilihan, untuk momen manis setiap hari.'}</p>
+                <div className="product-bottom-row">
+                    <span className="product-price">{formatRupiah(product.price)}</span>
                     <button
-                        className="btn btn-wa order-btn"
+                        className="product-add-button"
                         disabled={!isAvailable}
-                        onClick={() => onSelectProduct(product)}
-                        id={`btn-order-${product.id}`}
-                        title={isAvailable ? 'Pesan produk ini via WhatsApp' : 'Produk saat ini sedang habis'}
+                        onClick={() => onAddToCart(product)}
+                        aria-label={`Tambahkan ${product.name} ke keranjang`}
                     >
-                        <MessageCircle size={17} />
-                        <span>{isAvailable ? 'Pesan via WA' : 'Habis'}</span>
+                        <Plus size={17} />
                     </button>
                 </div>
             </div>
-        </div>
+        </article>
     );
 };

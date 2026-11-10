@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Package,
     Layers,
@@ -19,12 +19,19 @@ import {
     Database,
     Menu,
     X,
-    ExternalLink,
     ChevronRight,
-    ShieldCheck
+    ShieldCheck,
+    Eye,
+    EyeOff,
+    ImagePlus,
+    KeyRound,
+    UserRound,
+    ClipboardList,
+    ClipboardCheck
 } from 'lucide-react';
 import { ProductFormModal } from './ProductFormModal';
 import { ConfirmModal } from './ConfirmModal';
+import { AdminOrdersPanel } from './AdminOrdersPanel';
 import {
     createProduct,
     updateProduct,
@@ -33,7 +40,11 @@ import {
     createCategory,
     updateCategory,
     deleteCategory,
-    updateStoreSettings
+    updateStoreSettings,
+    updateAdminProfile,
+    fetchAdminOrders,
+    confirmOrder,
+    deleteConfirmedOrder
 } from '../services/api';
 
 export const AdminDashboard = ({
@@ -42,6 +53,7 @@ export const AdminDashboard = ({
     storeSettings,
     adminUser,
     onRefreshData,
+    onAdminProfileUpdate,
     onBackToCatalog,
     onLogout
 }) => {
@@ -59,17 +71,105 @@ export const AdminDashboard = ({
     const [newCatName, setNewCatName] = useState('');
     const [editingCategory, setEditingCategory] = useState(null);
     const [editCatName, setEditCatName] = useState('');
+    const [editCatImage, setEditCatImage] = useState(null);
+    const [editCatImagePreview, setEditCatImagePreview] = useState('');
     const [deletingCategory, setDeletingCategory] = useState(null);
     const [catError, setCatError] = useState('');
+
+    useEffect(() => {
+        return () => {
+            if (editCatImagePreview.startsWith('blob:')) {
+                URL.revokeObjectURL(editCatImagePreview);
+            }
+        };
+    }, [editCatImagePreview]);
 
     // Settings states
     const [settingsForm, setSettingsForm] = useState({
         storeName: storeSettings?.storeName || '',
         tagline: storeSettings?.tagline || '',
         phone: storeSettings?.phone || '',
-        address: storeSettings?.address || ''
+        address: storeSettings?.address || '',
+        logoUrl: storeSettings?.logo || ''
     });
     const [settingsSuccess, setSettingsSuccess] = useState(false);
+    const [settingsError, setSettingsError] = useState('');
+    const [logoFile, setLogoFile] = useState(null);
+    const [logoPreview, setLogoPreview] = useState(storeSettings?.logo || '');
+    const [profileForm, setProfileForm] = useState({
+        name: adminUser?.name || '',
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [profileError, setProfileError] = useState('');
+    const [profileSuccess, setProfileSuccess] = useState('');
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [orders, setOrders] = useState([]);
+    const [ordersLoading, setOrdersLoading] = useState(false);
+    const [ordersError, setOrdersError] = useState('');
+    const [confirmingOrderId, setConfirmingOrderId] = useState('');
+    const [deletingOrder, setDeletingOrder] = useState(null);
+    const [deletingOrderId, setDeletingOrderId] = useState('');
+
+    useEffect(() => {
+        let isActive = true;
+        const loadOrders = async () => {
+            setOrdersLoading(true);
+            try {
+                const response = await fetchAdminOrders();
+                if (isActive) {
+                    setOrders(response.data || []);
+                    setOrdersError('');
+                }
+            } catch (error) {
+                if (isActive) setOrdersError(error.message || 'Pesanan gagal dimuat.');
+            } finally {
+                if (isActive) setOrdersLoading(false);
+            }
+        };
+        loadOrders();
+        const intervalId = window.setInterval(loadOrders, 15000);
+        return () => {
+            isActive = false;
+            window.clearInterval(intervalId);
+        };
+    }, []);
+
+    const handleConfirmOrder = async (id) => {
+        setConfirmingOrderId(id);
+        setOrdersError('');
+        try {
+            await confirmOrder(id);
+            const response = await fetchAdminOrders();
+            setOrders(response.data || []);
+        } catch (error) {
+            setOrdersError(error.message || 'Pesanan gagal dikonfirmasi.');
+        } finally {
+            setConfirmingOrderId('');
+        }
+    };
+
+    const handleDeleteConfirmedOrder = async () => {
+        if (!deletingOrder) return;
+        setDeletingOrderId(deletingOrder.id);
+        setOrdersError('');
+        try {
+            await deleteConfirmedOrder(deletingOrder.id);
+            const deletedId = deletingOrder.id;
+            setDeletingOrder(null);
+            setOrders((currentOrders) => currentOrders.filter((order) => order.id !== deletedId));
+        } catch (error) {
+            setOrdersError(error.message || 'Riwayat pesanan gagal dihapus.');
+            setDeletingOrder(null);
+        } finally {
+            setDeletingOrderId('');
+        }
+    };
 
     // Currency Formatter
     const formatRupiah = (num) => {
@@ -152,14 +252,21 @@ export const AdminDashboard = ({
     const handleStartEditCategory = (cat) => {
         setEditingCategory(cat);
         setEditCatName(cat.name);
+        setEditCatImage(null);
+        setEditCatImagePreview(cat.image || '');
         setCatError('');
     };
 
     const handleSaveEditCategory = async (id) => {
         if (!editCatName.trim()) return;
         try {
-            await updateCategory(id, editCatName.trim());
+            const formData = new FormData();
+            formData.append('name', editCatName.trim());
+            if (editCatImage) formData.append('photo', editCatImage);
+            await updateCategory(id, editCatImage ? formData : editCatName.trim());
             setEditingCategory(null);
+            setEditCatImage(null);
+            setEditCatImagePreview('');
             await onRefreshData();
         } catch (err) {
             setCatError(err.message);
@@ -181,13 +288,84 @@ export const AdminDashboard = ({
     // --- Handlers: Store Settings ---
     const handleSaveSettings = async (e) => {
         e.preventDefault();
+        setIsSavingSettings(true);
+        setSettingsError('');
         try {
-            await updateStoreSettings(settingsForm);
+            const payload = new FormData();
+            Object.entries(settingsForm).forEach(([key, value]) => payload.append(key, value));
+            if (logoFile) payload.append('logo', logoFile);
+            await updateStoreSettings(payload);
             setSettingsSuccess(true);
+            setLogoFile(null);
             await onRefreshData();
             setTimeout(() => setSettingsSuccess(false), 3000);
         } catch (err) {
-            alert(`Gagal menyimpan pengaturan: ${err.message}`);
+            setSettingsError(err.message || 'Gagal menyimpan pengaturan toko.');
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
+
+    const handleLogoChange = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            alert('Pilih file gambar untuk logo toko.');
+            event.target.value = '';
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Ukuran logo maksimal 5 MB.');
+            event.target.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            setLogoFile(file);
+            setLogoPreview(String(reader.result));
+            setSettingsForm((current) => ({ ...current, logoUrl: '' }));
+        };
+        reader.onerror = () => alert('Gagal membaca file logo. Coba pilih file lain.');
+        reader.readAsDataURL(file);
+    };
+
+    const handleSaveAdminProfile = async (event) => {
+        event.preventDefault();
+        setProfileError('');
+        setProfileSuccess('');
+
+        if (profileForm.newPassword && profileForm.newPassword !== profileForm.confirmPassword) {
+            setProfileError('Konfirmasi password baru tidak cocok.');
+            return;
+        }
+        if (profileForm.newPassword && !profileForm.currentPassword) {
+            setProfileError('Masukkan password saat ini untuk mengganti password.');
+            return;
+        }
+
+        setIsSavingProfile(true);
+        try {
+            const payload = {
+                name: profileForm.name.trim(),
+                ...(profileForm.newPassword ? {
+                    currentPassword: profileForm.currentPassword,
+                    newPassword: profileForm.newPassword
+                } : {})
+            };
+            const response = await updateAdminProfile(payload);
+            onAdminProfileUpdate?.(response.user);
+            setProfileForm((current) => ({
+                ...current,
+                name: response.user.name,
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            }));
+            setProfileSuccess(response.message || 'Profil admin berhasil diperbarui.');
+        } catch (err) {
+            setProfileError(err.message || 'Profil admin gagal diperbarui.');
+        } finally {
+            setIsSavingProfile(false);
         }
     };
 
@@ -208,10 +386,12 @@ export const AdminDashboard = ({
                 {/* Sidebar Header / Brand */}
                 <div className="sidebar-brand">
                     <div className="sidebar-brand-icon">
-                        <ShoppingBag size={22} color="#ffffff" />
+                        {storeSettings?.logo
+                            ? <img className="admin-store-logo" src={storeSettings.logo} alt="Logo toko" />
+                            : <ShoppingBag size={22} color="#ffffff" />}
                     </div>
                     <div className="sidebar-brand-text">
-                        <div className="sidebar-brand-title">KatalogWA</div>
+                    <div className="sidebar-brand-title">{storeSettings?.storeName || 'T’xie Cake'}</div>
                         <div className="sidebar-brand-badge">Admin Back-Office</div>
                     </div>
                     <button
@@ -260,6 +440,31 @@ export const AdminDashboard = ({
                     </button>
 
                     <button
+                        className={`sidebar-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+                        onClick={() => {
+                            setActiveTab('orders');
+                            setIsSidebarOpenMobile(false);
+                        }}
+                        id="sidebar-link-orders"
+                    >
+                        <ClipboardList size={18} />
+                        <span className="nav-item-label">Pesanan Masuk</span>
+                        <span className="nav-badge-count">{orders.filter((order) => order.status === 'pending').length}</span>
+                    </button>
+
+                    <button
+                        className={`sidebar-nav-item ${activeTab === 'history' ? 'active' : ''}`}
+                        onClick={() => {
+                            setActiveTab('history');
+                            setIsSidebarOpenMobile(false);
+                        }}
+                        id="sidebar-link-order-history"
+                    >
+                        <ClipboardCheck size={18} />
+                        <span className="nav-item-label">Riwayat Pemesanan</span>
+                    </button>
+
+                    <button
                         className={`sidebar-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
                         onClick={() => {
                             setActiveTab('settings');
@@ -288,7 +493,7 @@ export const AdminDashboard = ({
                 <div className="sidebar-footer">
                     <div className="sidebar-user-card">
                         <div className="user-avatar">
-                            <ShieldCheck size={18} color="#10b981" />
+                            <ShieldCheck size={18} color="#e9e9e0c7" />
                         </div>
                         <div className="user-info">
                             <strong className="user-name">{adminUser?.name || 'Store Owner'}</strong>
@@ -326,10 +531,12 @@ export const AdminDashboard = ({
                             <h2 className="viewport-title">
                                 {activeTab === 'products' && 'Manajemen Produk Katalog'}
                                 {activeTab === 'categories' && 'Manajemen Kategori'}
-                                {activeTab === 'settings' && 'Pengaturan Toko & Nomor WhatsApp'}
+                                {activeTab === 'orders' && 'Pesanan Masuk'}
+                                {activeTab === 'history' && 'Riwayat Pemesanan'}
+                                {activeTab === 'settings' && 'Profil Admin & Pengaturan Toko'}
                             </h2>
                             <span className="viewport-breadcrumb">
-                                Admin Panel / {activeTab === 'products' ? 'Produk' : activeTab === 'categories' ? 'Kategori' : 'Pengaturan'}
+                                Admin Panel / {activeTab === 'products' ? 'Produk' : activeTab === 'categories' ? 'Kategori' : activeTab === 'orders' ? 'Pesanan Masuk' : activeTab === 'history' ? 'Riwayat Pemesanan' : 'Pengaturan'}
                             </span>
                         </div>
                     </div>
@@ -348,7 +555,7 @@ export const AdminDashboard = ({
                     <div className="metrics-grid" style={{ marginBottom: '1.75rem' }}>
                         <div className="metric-card">
                             <div className="metric-icon-box bg-emerald">
-                                <Package size={22} color="#059669" />
+                                <Package size={22} color="#fcfaad" />
                             </div>
                             <div>
                                 <span className="metric-label">Total Produk</span>
@@ -358,7 +565,7 @@ export const AdminDashboard = ({
 
                         <div className="metric-card">
                             <div className="metric-icon-box bg-green">
-                                <CheckCircle size={22} color="#10b981" />
+                                <CheckCircle size={22} color="#faecad" />
                             </div>
                             <div>
                                 <span className="metric-label">Produk Tersedia</span>
@@ -582,22 +789,48 @@ export const AdminDashboard = ({
                                             <div key={cat.id} className="category-item-row">
                                                 {editingCategory?.id === cat.id ? (
                                                     <div className="category-inline-edit">
-                                                        <input
-                                                            type="text"
-                                                            className="form-input"
-                                                            value={editCatName}
-                                                            onChange={(e) => setEditCatName(e.target.value)}
-                                                            autoFocus
-                                                        />
+                                                        <div className="category-edit-fields">
+                                                            <input
+                                                                type="text"
+                                                                className="form-input"
+                                                                value={editCatName}
+                                                                onChange={(e) => setEditCatName(e.target.value)}
+                                                                aria-label="Nama kategori"
+                                                                autoFocus
+                                                            />
+                                                            <label className="category-edit-image-picker">
+                                                                {editCatImagePreview ? (
+                                                                    <img src={editCatImagePreview} alt="Pratinjau gambar kategori" />
+                                                                ) : (
+                                                                    <ImagePlus size={18} />
+                                                                )}
+                                                                <span>{editCatImage ? 'Ganti gambar' : 'Pilih gambar'}</span>
+                                                                <input
+                                                                    type="file"
+                                                                    accept="image/jpeg,image/png,image/webp,image/gif"
+                                                                    onChange={(e) => {
+                                                                        const file = e.target.files?.[0] || null;
+                                                                        setEditCatImage(file);
+                                                                        setEditCatImagePreview(file ? URL.createObjectURL(file) : (cat.image || ''));
+                                                                        e.target.value = '';
+                                                                    }}
+                                                                />
+                                                            </label>
+                                                        </div>
                                                         <button
                                                             className="btn btn-primary btn-sm"
                                                             onClick={() => handleSaveEditCategory(cat.id)}
+                                                            aria-label="Simpan perubahan kategori"
                                                         >
                                                             <Save size={14} />
                                                         </button>
                                                         <button
                                                             className="btn btn-secondary btn-sm"
-                                                            onClick={() => setEditingCategory(null)}
+                                                            onClick={() => {
+                                                                setEditingCategory(null);
+                                                                setEditCatImage(null);
+                                                                setEditCatImagePreview('');
+                                                            }}
                                                         >
                                                             Batal
                                                         </button>
@@ -605,6 +838,7 @@ export const AdminDashboard = ({
                                                 ) : (
                                                     <>
                                                         <div className="cat-name-info">
+                                                            {cat.image && <img className="category-list-thumbnail" src={cat.image} alt="" />}
                                                             <strong>{cat.name}</strong>
                                                             <span className="badge badge-category" style={{ fontSize: '0.75rem' }}>
                                                                 {cat.productCount || 0} Produk Terdaftar
@@ -615,7 +849,7 @@ export const AdminDashboard = ({
                                                             <button
                                                                 className="btn-icon"
                                                                 onClick={() => handleStartEditCategory(cat)}
-                                                                title="Ubah Nama"
+                                                                title="Ubah Nama dan Gambar"
                                                             >
                                                                 <Edit2 size={15} />
                                                             </button>
@@ -637,25 +871,97 @@ export const AdminDashboard = ({
                         </div>
                     )}
 
+                    {(activeTab === 'orders' || activeTab === 'history') && (
+                        <div className="admin-tab-content animate-fade-in">
+                            <AdminOrdersPanel
+                                orders={orders.filter((order) => order.status === (activeTab === 'orders' ? 'pending' : 'confirmed'))}
+                                history={activeTab === 'history'}
+                                loading={ordersLoading}
+                                error={ordersError}
+                                onRefresh={async () => {
+                                    setOrdersLoading(true);
+                                    try {
+                                        const response = await fetchAdminOrders();
+                                        setOrders(response.data || []);
+                                        setOrdersError('');
+                                    } catch (error) {
+                                        setOrdersError(error.message || 'Pesanan gagal dimuat.');
+                                    } finally {
+                                        setOrdersLoading(false);
+                                    }
+                                }}
+                                onConfirm={handleConfirmOrder}
+                                confirmingOrderId={confirmingOrderId}
+                                onDelete={setDeletingOrder}
+                                deletingOrderId={deletingOrderId}
+                            />
+                        </div>
+                    )}
+
                     {/* ===========================================================
               MODULE 3: STORE SETTINGS
              =========================================================== */}
                     {activeTab === 'settings' && (
                         <div className="admin-tab-content animate-fade-in">
-                            <div className="card-box" style={{ maxWidth: '640px' }}>
-                                <h3 className="box-title">Pengaturan Profil & WhatsApp Toko</h3>
+                            <div className="settings-cards">
+                            <div className="card-box settings-card">
+                                <h3 className="box-title">Profil & Identitas Toko</h3>
                                 <p className="box-subtitle">
-                                    Konfigurasi disimpan di tabel SQL <code>settings</code>. Digunakan untuk redirect WhatsApp pesanan pelanggan.
+                                    Perbarui nama, logo, dan informasi yang ditampilkan pada katalog pelanggan.
                                 </p>
 
+                                {settingsError && (
+                                    <div className="form-alert-error animate-fade-in" role="alert" style={{ marginBottom: '1rem' }}>
+                                        <AlertCircle size={18} />
+                                        <span>{settingsError}</span>
+                                    </div>
+                                )}
                                 {settingsSuccess && (
                                     <div className="form-alert-success animate-fade-in" style={{ marginBottom: '1rem' }}>
                                         <Check size={18} />
-                                        <span>Pengaturan toko berhasil diperbarui ke database SQL!</span>
+                                        <span>Pengaturan toko berhasil diperbarui.</span>
                                     </div>
                                 )}
 
                                 <form onSubmit={handleSaveSettings}>
+                                    <div className="form-group">
+                                        <label className="form-label">Logo Toko</label>
+                                        <div className="store-logo-editor">
+                                            <div className="store-logo-preview">
+                                                {logoPreview || settingsForm.logoUrl ? (
+                                                    <img src={logoPreview || settingsForm.logoUrl} alt="Pratinjau logo toko" />
+                                                ) : (
+                                                    <ImagePlus size={27} />
+                                                )}
+                                            </div>
+                                            <div className="store-logo-controls">
+                                                <label className="btn btn-secondary btn-sm store-logo-upload">
+                                                    <ImagePlus size={15} />
+                                                    <span>Pilih gambar</span>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png,image/jpeg,image/webp,image/gif"
+                                                        onChange={handleLogoChange}
+                                                    />
+                                                </label>
+                                                <small>PNG, JPG, WEBP atau GIF. Maksimal 5 MB.</small>
+                                            </div>
+                                        </div>
+                                        <label className="form-label" htmlFor="store-logo-url">Atau gunakan URL logo</label>
+                                        <input
+                                            id="store-logo-url"
+                                            type="url"
+                                            className="form-input"
+                                            placeholder="https://contoh.com/logo.png"
+                                            value={settingsForm.logoUrl}
+                                            onChange={(e) => {
+                                                setLogoFile(null);
+                                                setLogoPreview('');
+                                                setSettingsForm({ ...settingsForm, logoUrl: e.target.value });
+                                            }}
+                                        />
+                                    </div>
+
                                     <div className="form-group">
                                         <label className="form-label">Nama Bisnis / Toko</label>
                                         <input
@@ -705,11 +1011,101 @@ export const AdminDashboard = ({
                                         />
                                     </div>
 
-                                    <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }}>
+                                    <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }} disabled={isSavingSettings}>
                                         <Save size={16} />
-                                        <span>Simpan Pengaturan ke SQL</span>
+                                        <span>{isSavingSettings ? 'Menyimpan...' : 'Simpan Profil Toko'}</span>
                                     </button>
                                 </form>
+                            </div>
+
+                            <div className="card-box settings-card admin-profile-card">
+                                <h3 className="box-title">Profil Admin & Keamanan</h3>
+                                <p className="box-subtitle">Ubah nama admin atau perbarui password akun dashboard.</p>
+                                {profileError && (
+                                    <div className="form-alert-error animate-fade-in" role="alert" style={{ marginBottom: '1rem' }}>
+                                        <AlertCircle size={18} />
+                                        <span>{profileError}</span>
+                                    </div>
+                                )}
+                                {profileSuccess && (
+                                    <div className="form-alert-success animate-fade-in" role="status" style={{ marginBottom: '1rem' }}>
+                                        <Check size={18} />
+                                        <span>{profileSuccess}</span>
+                                    </div>
+                                )}
+                                <form onSubmit={handleSaveAdminProfile}>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="admin-profile-name"><UserRound size={15} /> Nama Admin</label>
+                                        <input
+                                            id="admin-profile-name"
+                                            type="text"
+                                            className="form-input"
+                                            value={profileForm.name}
+                                            onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                                            required
+                                            maxLength={80}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="admin-current-password"><KeyRound size={15} /> Password Saat Ini</label>
+                                        <div className="password-input-wrap">
+                                            <input
+                                                id="admin-current-password"
+                                                type={showCurrentPassword ? 'text' : 'password'}
+                                                className="form-input"
+                                                value={profileForm.currentPassword}
+                                                onChange={(e) => setProfileForm({ ...profileForm, currentPassword: e.target.value })}
+                                                autoComplete="current-password"
+                                                placeholder="Diperlukan untuk mengganti password"
+                                            />
+                                            <button type="button" className="password-visibility-toggle" onClick={() => setShowCurrentPassword((visible) => !visible)} aria-label={showCurrentPassword ? 'Sembunyikan password saat ini' : 'Perlihatkan password saat ini'}>
+                                                {showCurrentPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="admin-new-password">Password Baru</label>
+                                        <div className="password-input-wrap">
+                                            <input
+                                                id="admin-new-password"
+                                                type={showNewPassword ? 'text' : 'password'}
+                                                className="form-input"
+                                                value={profileForm.newPassword}
+                                                onChange={(e) => setProfileForm({ ...profileForm, newPassword: e.target.value })}
+                                                autoComplete="new-password"
+                                                minLength={8}
+                                                placeholder="Kosongkan jika tidak ingin mengganti password"
+                                            />
+                                            <button type="button" className="password-visibility-toggle" onClick={() => setShowNewPassword((visible) => !visible)} aria-label={showNewPassword ? 'Sembunyikan password baru' : 'Perlihatkan password baru'}>
+                                                {showNewPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                            </button>
+                                        </div>
+                                        <small className="admin-form-hint">Minimal 8 karakter. Password kosong berarti tidak diubah.</small>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label" htmlFor="admin-confirm-password">Konfirmasi Password Baru</label>
+                                        <div className="password-input-wrap">
+                                            <input
+                                                id="admin-confirm-password"
+                                                type={showConfirmPassword ? 'text' : 'password'}
+                                                className="form-input"
+                                                value={profileForm.confirmPassword}
+                                                onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
+                                                autoComplete="new-password"
+                                                minLength={8}
+                                                placeholder="Ulangi password baru"
+                                            />
+                                            <button type="button" className="password-visibility-toggle" onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? 'Sembunyikan konfirmasi password' : 'Perlihatkan konfirmasi password'}>
+                                                {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button type="submit" className="btn btn-primary" disabled={isSavingProfile}>
+                                        <Save size={16} />
+                                        <span>{isSavingProfile ? 'Menyimpan...' : 'Simpan Profil Admin'}</span>
+                                    </button>
+                                </form>
+                            </div>
                             </div>
                         </div>
                     )}
@@ -743,6 +1139,15 @@ export const AdminDashboard = ({
                 onConfirm={handleConfirmDeleteCategory}
                 onCancel={() => setDeletingCategory(null)}
                 confirmText="Hapus Kategori"
+            />
+
+            <ConfirmModal
+                isOpen={!!deletingOrder}
+                title="Hapus Riwayat Pesanan?"
+                message={`Riwayat pesanan ${deletingOrder?.orderCode || ''} akan dihapus permanen dan tidak dapat dipulihkan.`}
+                onConfirm={handleDeleteConfirmedOrder}
+                onCancel={() => setDeletingOrder(null)}
+                confirmText="Hapus Riwayat"
             />
         </div>
     );

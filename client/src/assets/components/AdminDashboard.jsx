@@ -23,8 +23,8 @@ import {
   ChevronRight,
   ShieldCheck
 } from 'lucide-react';
-import { ProductFormModal } from './ProductFormModal';
-import { ConfirmModal } from './ConfirmModal';
+import { ProductFormModal } from '../../components/ProductFormModal';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import {
   createProduct,
   updateProduct,
